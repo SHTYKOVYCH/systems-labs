@@ -29,6 +29,8 @@ type Combinator struct {
 	normilazeChan chan [][]Task
 }
 
+const NumOfWorkers int = 3
+
 func MakeCombinator(numOfWorkers int) Combinator {
 	c := Combinator{sourceChan: make([]chan [][]Task, numOfWorkers), calculateChan: make(chan [][]Task, 10000), outChan: make(chan CombinationWithTime), normilazeChan: make(chan [][]Task, 10000)}
 
@@ -195,26 +197,28 @@ func ListenToGenerateCombinations(workerIndex int, in chan [][]Task, out []chan 
 	close(out[0])
 }
 
-func NormilizeOrder(comb *[][]Task) *[][]Task {
+func NormalizeOrder(comb *[][]Task) *[][]Task {
 	for i := 0; i < len(*comb); i += 1 {
 		taskStartTime := 0
 		for j := 0; j < len((*comb)[i]); j += 1 {
-			for k := 0; k < len(*comb); k += 1 {
-				otherTaskStartTime := 0
-				if i == k {
-					continue
-				} else {
-					for l := 0; l < len((*comb)[k]); l += 1 {
-						if slices.IndexFunc((*comb)[i][j].Requirements, func(t string) bool { return t == (*comb)[k][l].Id }) > -1 {
-							if otherTaskStartTime+(*comb)[k][l].Duration > taskStartTime {
-								newComb := CopyCombination(*comb)
-								newComb[i] = append(make([]Task, 0), (*comb)[i][:j]...)
-								newComb[i] = append(newComb[i], Task{Id: "-1", Duration: otherTaskStartTime + (*comb)[k][l].Duration - taskStartTime, Name: "Idle", Requirements: []string{}, Resources: 0})
-								newComb[i] = append(newComb[i], (*comb)[i][j:]...)
-								return &newComb
+			if len((*comb)[i][j].Requirements) > 0 {
+				for k := 0; k < len(*comb); k += 1 {
+					otherTaskStartTime := 0
+					if i == k {
+						continue
+					} else {
+						for l := 0; l < len((*comb)[k]); l += 1 {
+							if slices.IndexFunc((*comb)[i][j].Requirements, func(t string) bool { return t == (*comb)[k][l].Id }) > -1 {
+								if otherTaskStartTime+(*comb)[k][l].Duration > taskStartTime {
+									newComb := CopyCombination(*comb)
+									newComb[i] = append(make([]Task, 0), (*comb)[i][:j]...)
+									newComb[i] = append(newComb[i], Task{Id: "-1", Duration: otherTaskStartTime + (*comb)[k][l].Duration - taskStartTime, Name: "Idle", Requirements: []string{}, Resources: 0})
+									newComb[i] = append(newComb[i], (*comb)[i][j:]...)
+									return &newComb
+								}
 							}
+							otherTaskStartTime += (*comb)[k][l].Duration
 						}
-						otherTaskStartTime += (*comb)[k][l].Duration
 					}
 				}
 			}
@@ -225,21 +229,84 @@ func NormilizeOrder(comb *[][]Task) *[][]Task {
 	return comb
 }
 
+func NormalizeResources(comb *[][]Task) []*[][]Task {
+	result := []*[][]Task{}
+	for i := 0; i < len(*comb); i += 1 {
+		taskStartTime := 0
+		for j := 0; j < len((*comb)[i]); j += 1 {
+			taskEndTime := taskStartTime + (*comb)[i][j].Duration
+			awaibleResources := NumOfWorkers - (*comb)[i][j].Resources
+			if (*comb)[i][j].Resources > 0 {
+				for k := 0; k < len(*comb); k += 1 {
+					otherTaskStartTime := 0
+					if i == k {
+						continue
+					} else {
+						for l := 0; l < len((*comb)[k]) && otherTaskStartTime < taskEndTime; l += 1 {
+							otherTaskEndTime := otherTaskStartTime + (*comb)[k][l].Duration
+							if !(otherTaskStartTime < taskStartTime && otherTaskEndTime <= taskStartTime) && (*comb)[k][l].Resources > awaibleResources {
+								firstCombination := CopyCombination(*comb)
+
+								firstCombination[k] = append(make([]Task, 0), firstCombination[k][:l]...)
+								firstCombination[k] = append(firstCombination[k], Task{Id: "-1", Name: "Idle", Duration: taskEndTime - otherTaskStartTime, Requirements: []string{}, Resources: 0})
+								firstCombination[k] = append(firstCombination[k], (*comb)[k][l:]...)
+
+								result = append(result, &firstCombination)
+
+								secondCombination := CopyCombination(*comb)
+
+								secondCombination[i] = append(make([]Task, 0), secondCombination[i][:j]...)
+								secondCombination[i] = append(secondCombination[i], Task{Id: "-1", Name: "Idle", Duration: otherTaskEndTime - taskStartTime, Requirements: []string{}, Resources: 0})
+								secondCombination[i] = append(secondCombination[i], (*comb)[i][j:]...)
+
+								result = append(result, &secondCombination)
+
+								return result
+							}
+
+							otherTaskStartTime = otherTaskEndTime
+						}
+					}
+				}
+			}
+			taskStartTime = taskEndTime
+		}
+	}
+
+	return result
+}
+
 func NormalizeFunc(comb *[][]Task, outChan chan [][]Task, group *sync.WaitGroup) {
 	defer group.Done()
 
 	innerComb := comb
 
 	for {
-		innerStruct := NormilizeOrder(innerComb)
+		innerStruct := NormalizeOrder(innerComb)
 
 		if innerStruct == innerComb {
-			outChan <- *innerComb
 			break
 		}
 
 		innerComb = innerStruct
 	}
+
+	for {
+		newCombs := NormalizeResources(innerComb)
+
+		for i := 0; i < len(newCombs); i += 1 {
+			group.Add(1)
+			go NormalizeFunc(newCombs[i], outChan, group)
+		}
+
+		if len(newCombs) > 0 {
+			return
+		} else {
+			break
+		}
+	}
+
+	outChan <- *innerComb
 }
 
 func ListenToNormalize(in chan [][]Task, out chan [][]Task, group *sync.WaitGroup) {
@@ -261,7 +328,6 @@ func ListenToCalculateTime(in chan [][]Task, out chan CombinationWithTime, group
 	innerStruct := CombinationWithTime{Duration: -1}
 
 	for c := range in {
-		//		PrintCombination(c)
 		calculatedTime := CalculateExecTimeOfCombination(c)
 		if innerStruct.Duration == -1 || innerStruct.Duration > calculatedTime {
 			innerStruct = CombinationWithTime{Duration: calculatedTime, Task: c}
@@ -280,9 +346,7 @@ func ListenToSelectOptimal(in chan CombinationWithTime, group *sync.WaitGroup) {
 		}
 	}
 
-	//	global.Lock()
 	fmt.Println("Optimal time: ", innerStruct.Duration)
-	//	global.Unlock()
 	PrintCombination(innerStruct.Task)
 }
 
@@ -351,8 +415,6 @@ func main() {
 		tasks = append(tasks, t)
 	}
 
-	const NumOfWorkers = 3
-
 	c := MakeCombinator(NumOfWorkers - 1)
 
 	firstCombination := make([][]Task, NumOfWorkers)
@@ -365,7 +427,5 @@ func main() {
 	start := time.Now()
 	c.Run(firstCombination)
 	end := time.Since(start)
-	//	global.Lock()
 	fmt.Println("\nexec time: ", end)
-	//	global.Unlock()
 }
