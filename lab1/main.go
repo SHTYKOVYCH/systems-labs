@@ -6,6 +6,7 @@ import (
 	"os"
 	"slices"
 	"sync"
+	"time"
 )
 
 type Task struct {
@@ -25,13 +26,14 @@ type Combinator struct {
 	sourceChan    []chan [][]Task
 	calculateChan chan [][]Task
 	outChan       chan CombinationWithTime
+	normilazeChan chan [][]Task
 }
 
 func MakeCombinator(numOfWorkers int) Combinator {
-	c := Combinator{sourceChan: make([]chan [][]Task, numOfWorkers), calculateChan: make(chan [][]Task, 1000), outChan: make(chan CombinationWithTime, 1000)}
+	c := Combinator{sourceChan: make([]chan [][]Task, numOfWorkers), calculateChan: make(chan [][]Task, 10000), outChan: make(chan CombinationWithTime), normilazeChan: make(chan [][]Task, 10000)}
 
 	for i := 0; i < numOfWorkers; i += 1 {
-		c.sourceChan[i] = make(chan [][]Task)
+		c.sourceChan[i] = make(chan [][]Task, 10)
 	}
 
 	return c
@@ -71,24 +73,70 @@ func ValidateCombination(c [][]Task) bool {
 func CopyCombination(c [][]Task) [][]Task {
 	var result [][]Task = make([][]Task, len(c))
 
-	copy(result, c)
-
 	for i := 0; i < len(c); i += 1 {
+		result[i] = make([]Task, len(c[i]))
 		copy(result[i], c[i])
 	}
 
 	return result
 }
 
+func CalculateTimeOfChunk(c []Task, channel chan<- int, wg *sync.WaitGroup) {
+	execTime := 0
+
+	for i := 0; i < len(c); i += 1 {
+		execTime += c[i].Duration
+	}
+
+	channel <- execTime
+	wg.Done()
+}
+
+func CalculateExecTimeOfQueue(c []Task, channel chan<- int, wg *sync.WaitGroup) {
+	execTime := 0
+	sizeOfChunk := 2000
+	numOfChunks := len(c) / sizeOfChunk
+	if len(c)%sizeOfChunk > 0 {
+		numOfChunks += 1
+	}
+	var wg_in sync.WaitGroup
+	ch := make(chan int, numOfChunks)
+
+	for i := 0; i < numOfChunks; i += 1 {
+		wg_in.Add(1)
+		if i+1 == numOfChunks {
+			go CalculateTimeOfChunk(c[i*sizeOfChunk:], ch, &wg_in)
+		} else {
+			go CalculateTimeOfChunk(c[i*sizeOfChunk:(i+1)*sizeOfChunk], ch, &wg_in)
+		}
+	}
+
+	wg_in.Wait()
+	close(ch)
+
+	for et := range ch {
+		execTime += et
+	}
+	channel <- execTime
+	wg.Done()
+}
+
 func CalculateExecTimeOfCombination(c [][]Task) int {
 	maxTime := -1
 
-	for i := 0; i < len(c); i += 1 {
-		execTime := 0
-		for j := 0; j < len(c[i]); j += 1 {
-			execTime += c[i][j].Duration
-		}
+	var wg sync.WaitGroup
 
+	channel := make(chan int, len(c))
+
+	for i := 0; i < len(c); i += 1 {
+		wg.Add(1)
+		go CalculateExecTimeOfQueue(c[i], channel, &wg)
+	}
+
+	wg.Wait()
+	close(channel)
+
+	for execTime := range channel {
 		if maxTime == -1 || maxTime < execTime {
 			maxTime = execTime
 		}
@@ -147,21 +195,79 @@ func ListenToGenerateCombinations(workerIndex int, in chan [][]Task, out []chan 
 	close(out[0])
 }
 
+func NormilizeOrder(comb *[][]Task) *[][]Task {
+	for i := 0; i < len(*comb); i += 1 {
+		taskStartTime := 0
+		for j := 0; j < len((*comb)[i]); j += 1 {
+			for k := 0; k < len(*comb); k += 1 {
+				otherTaskStartTime := 0
+				if i == k {
+					continue
+				} else {
+					for l := 0; l < len((*comb)[k]); l += 1 {
+						if slices.IndexFunc((*comb)[i][j].Requirements, func(t string) bool { return t == (*comb)[k][l].Id }) > -1 {
+							if otherTaskStartTime+(*comb)[k][l].Duration > taskStartTime {
+								newComb := CopyCombination(*comb)
+								newComb[i] = append(make([]Task, 0), (*comb)[i][:j]...)
+								newComb[i] = append(newComb[i], Task{Id: "-1", Duration: otherTaskStartTime + (*comb)[k][l].Duration - taskStartTime, Name: "Idle", Requirements: []string{}, Resources: 0})
+								newComb[i] = append(newComb[i], (*comb)[i][j:]...)
+								return &newComb
+							}
+						}
+						otherTaskStartTime += (*comb)[k][l].Duration
+					}
+				}
+			}
+			taskStartTime += (*comb)[i][j].Duration
+		}
+	}
+
+	return comb
+}
+
+func NormalizeFunc(comb *[][]Task, outChan chan [][]Task, group *sync.WaitGroup) {
+	defer group.Done()
+
+	innerComb := comb
+
+	for {
+		innerStruct := NormilizeOrder(innerComb)
+
+		if innerStruct == innerComb {
+			outChan <- *innerComb
+			break
+		}
+
+		innerComb = innerStruct
+	}
+}
+
+func ListenToNormalize(in chan [][]Task, out chan [][]Task, group *sync.WaitGroup) {
+	defer group.Done()
+	defer close(out)
+
+	var innerGroup sync.WaitGroup
+
+	for c := range in {
+		innerGroup.Add(1)
+		NormalizeFunc(&c, out, &innerGroup)
+	}
+
+	innerGroup.Wait()
+}
+
 func ListenToCalculateTime(in chan [][]Task, out chan CombinationWithTime, group *sync.WaitGroup) {
-	defer func() {
-		group.Done()
-		recover()
-	}()
+	defer group.Done()
 	innerStruct := CombinationWithTime{Duration: -1}
 
 	for c := range in {
+		//		PrintCombination(c)
 		calculatedTime := CalculateExecTimeOfCombination(c)
 		if innerStruct.Duration == -1 || innerStruct.Duration > calculatedTime {
 			innerStruct = CombinationWithTime{Duration: calculatedTime, Task: c}
 		}
 	}
 	out <- innerStruct
-	close(out)
 }
 
 func ListenToSelectOptimal(in chan CombinationWithTime, group *sync.WaitGroup) {
@@ -174,7 +280,9 @@ func ListenToSelectOptimal(in chan CombinationWithTime, group *sync.WaitGroup) {
 		}
 	}
 
+	//	global.Lock()
 	fmt.Println("Optimal time: ", innerStruct.Duration)
+	//	global.Unlock()
 	PrintCombination(innerStruct.Task)
 }
 
@@ -184,18 +292,29 @@ func (c *Combinator) Run(startCombination [][]Task) {
 	for i := 0; i < len(c.sourceChan); i += 1 {
 		wg.Add(1)
 		if i+1 == len(c.sourceChan) {
-			go ListenToGenerateCombinations(i, c.sourceChan[i], append(make([]chan [][]Task, 0), c.calculateChan), &wg)
+			go ListenToGenerateCombinations(i, c.sourceChan[i], append(make([]chan [][]Task, 0), c.normilazeChan), &wg)
 		} else {
 			t := append(make([]chan [][]Task, 0), c.sourceChan[i+1:]...)
-			t = append(t, c.calculateChan)
+			t = append(t, c.normilazeChan)
 			go ListenToGenerateCombinations(i, c.sourceChan[i], t, &wg)
 		}
 	}
 
-	for i := 0; i < 2; i += 1 {
-		wg.Add(1)
-		go ListenToCalculateTime(c.calculateChan, c.outChan, &wg)
+	var calcWait sync.WaitGroup
+	for i := 0; i < 20; i += 1 {
+		calcWait.Add(1)
+		go ListenToCalculateTime(c.calculateChan, c.outChan, &calcWait)
 	}
+
+	wg.Add(1)
+	go ListenToNormalize(c.normilazeChan, c.calculateChan, &wg)
+
+	wg.Add(1)
+	go func() {
+		calcWait.Wait()
+		close(c.outChan)
+		wg.Done()
+	}()
 
 	wg.Add(1)
 	go ListenToSelectOptimal(c.outChan, &wg)
@@ -208,15 +327,33 @@ func (c *Combinator) Run(startCombination [][]Task) {
 }
 
 func main() {
-	tasksUnparsed, _ := os.ReadFile("tasks.json")
+	fileReader, err := os.Open("tasks.json")
 
-	var tasks []Task
+	if err != nil {
+		fmt.Println("Cannot open file")
+	}
+	defer fileReader.Close()
 
-	_ = json.Unmarshal(tasksUnparsed, &tasks)
+	decoder := json.NewDecoder(fileReader)
+
+	decoder.Token()
+
+	tasks := make([]Task, 0)
+
+	for decoder.More() {
+		var t Task
+		err := decoder.Decode(&t)
+		if err != nil {
+			fmt.Println("Error on read")
+			return
+		}
+
+		tasks = append(tasks, t)
+	}
 
 	const NumOfWorkers = 3
 
-	c := MakeCombinator(NumOfWorkers)
+	c := MakeCombinator(NumOfWorkers - 1)
 
 	firstCombination := make([][]Task, NumOfWorkers)
 
@@ -225,5 +362,10 @@ func main() {
 		firstCombination[i] = make([]Task, 0)
 	}
 
+	start := time.Now()
 	c.Run(firstCombination)
+	end := time.Since(start)
+	//	global.Lock()
+	fmt.Println("\nexec time: ", end)
+	//	global.Unlock()
 }

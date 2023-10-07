@@ -1,1 +1,1 @@
-[{"id":"1","name":"Task 1","requirements":[],"resources":2,"duration":74},{"id":"2","name":"Task 2","requirements":[],"resources":1,"duration":83},{"id":"3","name":"Task 3","requirements":["2"],"resources":1,"duration":84}]
+[{"id":"1","name":"Task 1","requirements":[],"resources":1,"duration":4},{"id":"2","name":"Task 2","requirements":[],"resources":2,"duration":7},{"id":"3","name":"Task 3","requirements":[],"resources":2,"duration":6},{"id":"4","name":"Task 4","requirements":["2","1"],"resources":2,"duration":1}]

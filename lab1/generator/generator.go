@@ -26,15 +26,15 @@ func main() {
 	}
 
 	var numOfResources = 3
-	var numOfTasks int = 3// rand.Intn(8) + 1
-	var numOfTasksWithDependencies int = 1 //(rand.Intn(numOfTasks) + 1) % numOfTasks
+	numOfTasks, _  := strconv.Atoi(os.Args[1])
+	var numOfTasksWithDependencies int = (rand.Intn(numOfTasks) + 1) % numOfTasks
 
 	fmt.Println(numOfTasks, numOfTasksWithDependencies)
 
 	var arr = make([]Task, 0, numOfTasks)
 
 	for i := 0; i < numOfTasks-numOfTasksWithDependencies; i += 1 {
-		arr = append(arr, Task{Id: strconv.Itoa(i + 1), Name: strings.Join([]string{"Task ", strconv.Itoa(i + 1)}, ""), Requirements: []string{}, Resources: rand.Intn(numOfResources) + 1, Duration: rand.Intn(100)})
+		arr = append(arr, Task{Id: strconv.Itoa(i + 1), Name: strings.Join([]string{"Task ", strconv.Itoa(i + 1)}, ""), Requirements: []string{}, Resources: rand.Intn(numOfResources) + 1, Duration: rand.Intn(10) + 1})
 	}
 
 	for i := numOfTasks - numOfTasksWithDependencies; i < numOfTasks; i += 1 {
@@ -50,7 +50,7 @@ func main() {
 				break
 			}
 		}
-		arr = append(arr, Task{Id: strconv.Itoa(i + 1), Name: strings.Join([]string{"Task ", strconv.Itoa(i + 1)}, ""), Requirements: deps, Resources: rand.Intn(numOfResources) + 1, Duration: rand.Intn(100)})
+		arr = append(arr, Task{Id: strconv.Itoa(i + 1), Name: strings.Join([]string{"Task ", strconv.Itoa(i + 1)}, ""), Requirements: deps, Resources: rand.Intn(numOfResources) + 1, Duration: rand.Intn(10) + 1})
 	}
 
 	stringToWrite, _ := json.Marshal(arr)
