@@ -1,0 +1,35 @@
+services:
+  db-products:
+    image: postgres
+    environment:
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 500MiB
+  
+  program:
+    build:
+      dockerfile: ./Dockerfile
+    depends_on:
+      db-products:
+        condition: service_healthy
+    ports:
+      - 6060:80
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 500MiB
+
+volumes:
+  db:

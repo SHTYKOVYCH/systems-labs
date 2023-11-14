@@ -12,6 +12,8 @@ RUN cmake --build .
 
 FROM httpd
 
-COPY --from=build /app/build/lab1 /usr/local/apache2/cgi-bin/
 
-CMD httpd-foreground -c "LoadModule cgid_module modules/mod_cgid.so"
+RUN mkdir /usr/local/apache2/api
+COPY ./httpd/my-httpd.conf /usr/local/apache2/conf/httpd.conf
+COPY --from=build /app/build/lab1 /usr/local/apache2/api/index.cgi
+
