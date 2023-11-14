@@ -1,0 +1,38 @@
+services:
+  db-products:
+    image: postgres
+    environment:
+      POSTGRES_USER: "products"
+      POSTGRES_PASSWORD: "products"
+    volumes:
+      - products:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U products" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 500MiB
+
+  products-service:
+    build:
+      dockerfile: ./Dockerfile
+    environment:
+      api_url: /api/v1
+    depends_on:
+      db-products:
+        condition: service_healthy
+    ports:
+      - 5050:8080
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 500MiB
+#nest next quarqus postgres nginx
+# как nginx кэширует записи
+volumes:
+  products:

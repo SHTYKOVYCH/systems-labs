@@ -1,0 +1,24 @@
+services:
+  inventory:
+    extends:
+      file: inventory_service/docker-compose.yaml
+      service: inventory-service
+
+  db-inventory:
+    extends:
+      file: inventory_service/docker-compose.yaml
+      service: db-inventory
+
+  products:
+    extends:
+      file: product_service/docker-compose.yaml
+      service: products-service
+
+  db-products:
+    extends:
+      file: product_service/docker-compose.yaml
+      service: db-products
+
+volumes:
+  products:
+  inventory:

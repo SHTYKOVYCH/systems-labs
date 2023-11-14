@@ -1,0 +1,37 @@
+services:
+  db-inventory:
+    image: postgres
+    environment:
+      POSTGRES_USER: "inventory"
+      POSTGRES_PASSWORD: "inventory"
+    volumes:
+      - inventory:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U products" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 500MiB
+
+  inventory-service:
+    build:
+      dockerfile: ./Dockerfile
+    environment:
+      api_url: /api/v1
+    depends_on:
+      db-inventory:
+        condition: service_healthy
+    ports:
+      - 5052:8080
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 500MiB
+
+volumes:
+  inventory:
