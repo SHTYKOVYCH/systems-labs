@@ -33,11 +33,7 @@ int main(int argc, char* argv[])
 
 	CGIApp app;
 
-	app.request("GET", "/", [](Http* http) -> void {
-		http->setCode("301", "//api");
-		});
-
-	app.request("GET", "/api", [&bd](Http* http) -> void {
+	app.request("GET", "/", [&bd](Http* http) -> void {
 		http->write("{");
 
 		for (auto needle : bd) {
@@ -63,7 +59,7 @@ int main(int argc, char* argv[])
 		http->write("}");
 		});
 
-	app.request("POST", "/api", [&bd](Http* http) -> void {
+	app.request("POST", "/", [&bd](Http* http) -> void {
 		map<string, vector<string>> body = http->getXwwwHtmlEncodedBody();
 
 		for (auto pair : body) {
@@ -73,7 +69,7 @@ int main(int argc, char* argv[])
 		}
 		});
 
-	app.request("PATCH", "/api", [&bd](Http* http) -> void {
+	app.request("PATCH", "/", [&bd](Http* http) -> void {
 		map<string, vector<string>> body = http->getXwwwHtmlEncodedBody();
 
 		try {
@@ -95,7 +91,7 @@ int main(int argc, char* argv[])
 		}
 		});
 
-	app.request("DELETE", "/api", [&bd](Http* http) -> void {
+	app.request("DELETE", "/", [&bd](Http* http) -> void {
 		map<string, vector<string>> body = http->getXwwwHtmlEncodedBody();
 
 		try {

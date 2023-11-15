@@ -11,13 +11,15 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    ports:
+      - 6061:5432
     deploy:
       resources:
         limits:
           cpus: '1'
           memory: 500MiB
   
-  program:
+  products:
     build:
       dockerfile: ./Dockerfile
     depends_on:
