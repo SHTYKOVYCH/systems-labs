@@ -9,3 +9,7 @@ std::vector<std::string> split(const std::string& s, char delimiter);
 void ltrim(std::string& s);
 void rtrim(std::string& s);
 void trim(std::string& s);
+
+std::string decodeURIComponent(std::string encoded);
+
+std::string encodeURIComponent(std::string decoded);

@@ -107,9 +107,7 @@ int main(int argc, char* argv[])
 
 		for (int i = 0; i < PQntuples(res); ++i) {
 			char* code = PQgetvalue(res, i, code_num);
-			http->write("{");
-			http->write("code: \"" + string(code) + "\",");
-			http->write("}");
+			http->write(string(code));
 		}
 
 		PQclear(res);

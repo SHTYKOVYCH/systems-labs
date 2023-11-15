@@ -91,6 +91,8 @@ string Http::getRawBody() {
 		retVal += line;
 	}
 
+	retVal = decodeURIComponent(retVal);
+
 	this->body = new string(retVal);
 
 	return retVal;
