@@ -30,7 +30,7 @@ public:
 
 	std::string getRawBody();
 
-	std::map<std::string, std::vector<std::string>> getXwwwHtmlEncodedBody();
+	std::map<std::string, std::string> getXwwwHtmlEncodedBody();
 
 	std::string getCookie(std::string name);
 

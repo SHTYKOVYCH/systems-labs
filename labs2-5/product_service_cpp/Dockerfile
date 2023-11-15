@@ -1,6 +1,7 @@
 FROM gcc as build-backend
 
 RUN apt-get update && apt-get install -y cmake;
+RUN apt-get install libpq-dev -y
 
 COPY ./backend /app/src
 
@@ -25,6 +26,8 @@ FROM httpd
 
 
 RUN mkdir /usr/local/apache2/api
+
+RUN apt-get update -y && apt-get install libpq-dev -y
 
 COPY ./httpd/my-httpd.conf /usr/local/apache2/conf/httpd.conf
 COPY --from=build-backend /app/build/lab1 /usr/local/apache2/api/index.cgi

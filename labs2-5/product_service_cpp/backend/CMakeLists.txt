@@ -2,7 +2,10 @@
 
 project ("lab1")
 
+find_package(PostgreSQL REQUIRED)
+
 include_directories("./http" "./utils" "./cgi-app")
+include_directories(${PostgreSQL_INCLUDE_DIRS})
 
 set(HEADERS
         utils/utils.h
@@ -20,3 +23,5 @@ set(SOURCES
 # Добавьте источник в исполняемый файл этого проекта.
 add_executable (lab1 ${HEADERS} ${SOURCES})
 target_link_libraries(lab1 -static-libgcc -static-libstdc++)
+target_link_libraries(lab1 ${PostgreSQL_LIBRARIES})
+

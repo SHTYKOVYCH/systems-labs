@@ -96,10 +96,10 @@ string Http::getRawBody() {
 	return retVal;
 }
 
-map<string, vector<string>> Http::getXwwwHtmlEncodedBody() {
+map<string, string> Http::getXwwwHtmlEncodedBody() {
 	string body = this->getRawBody();
 
-	map<string, vector<string>> retVal;
+	map<string, string> retVal;
 
 	vector<string> namesAndValues = split(body, '&');
 
@@ -110,7 +110,7 @@ map<string, vector<string>> Http::getXwwwHtmlEncodedBody() {
 			return !std::isspace(ch);
 			}));
 
-		retVal[nv[0]].push_back(nv[1]);
+		retVal[nv[0]] = nv[1];
 	}
 
 	return retVal;
