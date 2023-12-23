@@ -12,10 +12,10 @@ import (
 )
 
 type Product struct {
-	Code       string `json:"code"`
+	Id         int    `json:"id"`
 	Name       string `json:"name"`
 	NumOfItems int    `json:"numOfItems"`
-	Price      string `json:"price"`
+	Price      int    `json:"price"`
 }
 
 func main() {
@@ -28,7 +28,7 @@ func main() {
 	}
 	defer db.Close()
 
-	_, err = db.Exec("CREATE TABLE IF NOT EXISTS items (\n    code VARCHAR PRIMARY KEY,\n    name VARCHAR NOT NULL,\n    numOfItems NUMERIC NOT NULL,\n    PRICE VARCHAR NOT NULL\n)")
+	_, err = db.Exec("CREATE TABLE IF NOT EXISTS items (\n    id serial PRIMARY KEY,\n    name VARCHAR NOT NULL,\n    numOfItems NUMERIC NOT NULL,\n    price int NOT NULL\n)")
 
 	if err != nil {
 		fmt.Println(err.Error())
@@ -40,7 +40,7 @@ func main() {
 	router.Use(middleware.Logger)
 
 	router.Get(os.Getenv("api_url")+"/items", func(w http.ResponseWriter, r *http.Request) {
-		rows, err := db.Query("SELECT code FROM items")
+		rows, err := db.Query("SELECT * FROM items")
 
 		if err != nil {
 			w.WriteHeader(500)
@@ -48,40 +48,19 @@ func main() {
 			return
 		}
 		defer rows.Close()
-		items := []string{}
-		var code string
+		items := []Product{}
+		var item Product
 		for rows.Next() {
-			err := rows.Scan(&code)
+			err := rows.Scan(&item.Id, &item.Name, &item.NumOfItems, &item.Price)
 			if err != nil {
 				w.WriteHeader(500)
 				w.Write([]byte("Error fetching data from rows"))
 				return
 			}
-			items = append(items, code)
+			items = append(items, item)
 		}
 
 		res, err := json.Marshal(items)
-
-		if err != nil {
-			w.WriteHeader(500)
-			w.Write([]byte("Server error"))
-			return
-		}
-
-		w.Write(res)
-	})
-
-	router.Get(os.Getenv("api_url")+"/items/{id}", func(w http.ResponseWriter, r *http.Request) {
-		var code string
-		err := db.QueryRow("SELECT code FROM items WHERE code=$1", chi.URLParam(r, "id")).Scan(&code)
-
-		if err != nil {
-			w.WriteHeader(500)
-			w.Write([]byte("Error fetching data from database"))
-			return
-		}
-
-		res, err := json.Marshal([]string{code})
 
 		if err != nil {
 			w.WriteHeader(500)
@@ -105,7 +84,7 @@ func main() {
 			return
 		}
 
-		_, err := db.Exec("INSERT INTO items VALUES ($1, $2, $3, $4)", bodyTraslated.Code, bodyTraslated.Name, bodyTraslated.NumOfItems, bodyTraslated.Price)
+		_, err := db.Exec("INSERT INTO items (name, numOfItems, price) VALUES ($1, $2, $3)", bodyTraslated.Name, bodyTraslated.NumOfItems, bodyTraslated.Price)
 
 		if err != nil {
 			w.WriteHeader(500)
@@ -132,7 +111,7 @@ func main() {
 			return
 		}
 
-		_, err := db.Exec("UPDATE items SET code=$1, name=$2, weight=$3, description=$4 WHERE code=$5", bodyTraslated.Code, bodyTraslated.Name, bodyTraslated.NumOfItems, bodyTraslated.Price, productId)
+		_, err := db.Exec("UPDATE items SET name=$2, weight=$3, description=$4 WHERE id=$1", productId, bodyTraslated.Name, bodyTraslated.NumOfItems, bodyTraslated.Price)
 
 		if err != nil {
 			w.WriteHeader(500)
@@ -146,7 +125,7 @@ func main() {
 
 	router.Delete(os.Getenv("api_url")+"/items/{id}", func(w http.ResponseWriter, r *http.Request) {
 		productId := chi.URLParam(r, "id")
-		_, err = db.Exec("DELETE FROM items WHERE code=$1", productId)
+		_, err = db.Exec("DELETE FROM items WHERE id=$1", productId)
 
 		if err != nil {
 			w.WriteHeader(500)
@@ -162,6 +141,4 @@ func main() {
 	if err != nil {
 		fmt.Println(err.Error())
 	}
-
-	fmt.Println("Hi")
 }

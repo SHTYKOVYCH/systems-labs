@@ -1,12 +1,8 @@
 CREATE TABLE IF NOT EXISTS products (
-    code VARCHAR PRIMARY KEY,
-    name VARCHAR NOT NULL,
-    numOfItems NUMERIC NOT NULL,
-    PRICE VARCHAR NOT NULL
-)
+    id serial primary key ,
+    name VARCHAR NOT NULL check(trim(name) <> ''),
+    numOfItems int NOT NULL,
+    PRICE numeric(100, 2) NOT NULL
+);
 
-SELECT code FROM products
-
-INSERT INTO products VALUES ('test', 'test', 5, 'test')
-
-DELETE FROM products;
+SELECT id FROM products;

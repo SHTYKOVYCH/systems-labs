@@ -1,8 +1,21 @@
 services:
+  broker:
+    image: rabbitmq
+    ports:
+      - 15672:15672
+      - 5672:5672
+    volumes:
+      - broker:/var/lib/rabbitmq/mnesia/
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 30s
+      retries: 5
+
   inventory:
     extends:
       file: inventory_service/docker-compose.yaml
-      service: inventory-service
+      service: inventory
 
   db-inventory:
     extends:
@@ -19,6 +32,40 @@ services:
       file: product_service/docker-compose.yaml
       service: db-products
 
+  db-orders:
+    extends:
+      file: order_service/docker-compose.yaml
+      service: db-orders
+
+  orders:
+    extends:
+      file: order_service/docker-compose.yaml
+      service: orders
+    depends_on:
+      broker:
+        condition: service_healthy
+
+  db-notifications:
+    extends:
+      file: notifications_service/docker-compose.yaml
+      service: db-notifications
+
+  notifications:
+    extends:
+      file: notifications_service/docker-compose.yaml
+      service: notifications
+    depends_on:
+      broker:
+        condition: service_healthy
+
+  graphql:
+    extends:
+      file: graphql/docker-compose.yaml
+      service: graphql
+
 volumes:
   products:
   inventory:
+  orders:
+  broker:
+  notifications:

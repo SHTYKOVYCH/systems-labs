@@ -11,7 +11,7 @@
 		"docker-from-docker": {
 			"version": "latest",
 			"moby": true,
-			"dockerDashComposeVersion": "v2"
+			"dockerDashComposeVersion": "v1"
 		}
 	}
 

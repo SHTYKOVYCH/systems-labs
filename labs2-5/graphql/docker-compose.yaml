@@ -1,0 +1,11 @@
+services:
+  graphql:
+    build:
+      dockerfile: ./Dockerfile
+    ports:
+      - 5057:8080
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 50MiB

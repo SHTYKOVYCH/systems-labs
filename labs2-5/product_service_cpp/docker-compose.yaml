@@ -27,6 +27,8 @@ services:
         condition: service_healthy
     ports:
       - 6060:80
+    volumes:
+      - C:\Users\yadim\YandexDisk\labs\semenov\labs2-5\product_service_cpp\saved_files:/usr/local/apache2/saved_files
     deploy:
       resources:
         limits:

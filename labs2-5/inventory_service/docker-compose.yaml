@@ -17,7 +17,7 @@ services:
           cpus: '1'
           memory: 500MiB
 
-  inventory-service:
+  inventory:
     build:
       dockerfile: ./Dockerfile
     environment:

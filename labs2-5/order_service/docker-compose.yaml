@@ -1,0 +1,32 @@
+services:
+  db-orders:
+    image: mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+      MONGO_INITDB_DATABASE: orders
+    volumes:
+      - orders:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  orders:
+    build:
+      dockerfile: ./Dockerfile
+    ports:
+      - 5051:8080
+    depends_on:
+      db-orders:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 500MiB
+
+volumes:
+  orders:
